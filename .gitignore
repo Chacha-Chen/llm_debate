@@ -144,3 +144,7 @@ prompt_history/*
 prompt_history
 wandb/
 .hydra/
+
+# GPQA datasets + local run artifacts (generated)
+data/gpqa/
+data/gpqa_runs*/

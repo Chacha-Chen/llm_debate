@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from core.create_agents import setup_debate, setup_judge
 from core.file_handler import ConsultantType, DebateType, Experiment, Method
 from core.llm_api.llm import ModelAPI
+from core.load.gpqa_loader import main as gpqa_loader
 from core.load.quality import main as quality_loader
 from core.utils import setup_environment
 
@@ -28,12 +29,25 @@ async def async_main(cfg: DictConfig):
         logger_level=cfg.logging,
         anthropic_tag=cfg.anthropic_tag,
         openai_tag=cfg.openai_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_tag=cfg.openrouter_tag,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
+        organization=cfg.organization,
     )
     api_handler = ModelAPI(
         anthropic_num_threads=cfg.anthropic_num_threads,
         openai_fraction_rate_limit=cfg.openai_fraction_rate_limit,
         print_prompt_and_response=cfg.print_prompt_and_response,
         organization=cfg.organization,
+        openai_tag=cfg.openai_tag,
+        openrouter_tag=cfg.openrouter_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
+        openrouter_model_overrides=dict(cfg.openrouter_model_overrides),
     )
     if cfg.method_type == "seq":
         assert (
@@ -58,8 +72,14 @@ async def async_main(cfg: DictConfig):
     filename = experiment.get_debate_filename(seed=0, swap=False)
     filename.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = filename.parent / f"cache_{filename.stem}"
+    loader = (
+        gpqa_loader
+        if getattr(cfg, "dataset_type", "quality") == "gpqa"
+        else quality_loader
+    )
+
     if not filename.exists():
-        await quality_loader(
+        await loader(
             filename,
             split=cfg.split,
             max_tokens=cfg.max_tokens_story,

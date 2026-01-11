@@ -19,6 +19,7 @@ exp_dir: ???
 method: ??? # debate, consultancy
 method_type: ??? # sim, seq | correct, incorrect
 use_intermediary: ???
+dataset_type: "quality" # or "gpqa"
 
 # Load
 seed: 0
@@ -65,8 +66,18 @@ n_votes: 1
 results_file_name: "results.csv"
 
 # API
+llm_provider: openai # openai | openrouter
 organization: DEFAULT_ORG
 anthropic_tag: ANTHROPIC_API_KEY
 openai_tag: API_KEY
+openrouter_tag: OPENROUTER_API_KEY
+openrouter_base_url: https://openrouter.ai/api/v1
+openrouter_referer: null  # optional: your site/domain for OpenRouter
+openrouter_title: null    # optional: app title for OpenRouter
+openrouter_model_overrides:
+  gpt-4-1106-preview: openai/gpt-4o
+  claude-2.1: anthropic/claude-3.5-sonnet
+  claude-2.0: anthropic/claude-3.5-sonnet
+  claude-instant-1: anthropic/claude-3-haiku
 anthropic_num_threads: 80
 openai_fraction_rate_limit: 0.9

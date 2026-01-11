@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 from core.create_agents import setup_debate
 from core.file_handler import Experiment
 from core.llm_api.llm import ModelAPI
+from core.load.gpqa_loader import main as gpqa_loader
 from core.load.quality import main as quality_loader
 from core.rollouts.rollout_base import RolloutBase
 from core.utils import (
@@ -87,6 +88,11 @@ async def async_main(cfg: DictConfig):
         logger_level=cfg.logging,
         anthropic_tag=cfg.anthropic_tag,
         openai_tag=cfg.openai_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_tag=cfg.openrouter_tag,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
     )
     delete_old_prompt_files()
     api_handler = ModelAPI(
@@ -94,6 +100,13 @@ async def async_main(cfg: DictConfig):
         openai_fraction_rate_limit=cfg.openai_fraction_rate_limit,
         print_prompt_and_response=cfg.print_prompt_and_response,
         organization=cfg.organization,
+        openai_tag=cfg.openai_tag,
+        openrouter_tag=cfg.openrouter_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
+        openrouter_model_overrides=dict(cfg.openrouter_model_overrides),
     )
     exp_dir = Path(cfg.exp_dir)
     exp_dir.mkdir(parents=True, exist_ok=True)
@@ -114,9 +127,15 @@ async def async_main(cfg: DictConfig):
     filename = experiment.get_debate_filename(seed=cfg.seed, swap=False)
     filename.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = filename.parent / f"cache_{filename.stem}"
+    loader = (
+        gpqa_loader
+        if getattr(cfg, "dataset_type", "quality") == "gpqa"
+        else quality_loader
+    )
+
     if not filename.exists():
         print(f"No dataset found. Calling loader to {filename}")
-        await quality_loader(
+        await loader(
             filename,
             split=cfg.split,
             max_tokens=cfg.max_tokens_story,
@@ -159,12 +178,18 @@ async def async_main(cfg: DictConfig):
         num_debate_threads=num_debate_threads,
     )
 
-    # for sequential debate you must run swap at rollout time since it is not possible to do before judging
-    if cfg.method_type == "seq" or (cfg.method == "debate" and cfg.use_intermediary):
+    # For sequential/intermediary debate you must run swap at rollout time since it is not possible to do before judging.
+    # For GPQA, we also want a swapped run (to mitigate prefix bias) without changing the rollout protocol.
+    should_run_swap = (
+        cfg.method_type == "seq"
+        or (cfg.method == "debate" and cfg.use_intermediary)
+        or getattr(cfg, "dataset_type", "quality") == "gpqa"
+    )
+    if should_run_swap:
         filename = experiment.get_debate_filename(seed=cfg.seed, swap=True)
         cache_dir = filename.parent / f"cache_{filename.stem}"
         if not filename.exists():
-            await quality_loader(
+            await loader(
                 filename,
                 split=cfg.split,
                 max_tokens=cfg.max_tokens_story,

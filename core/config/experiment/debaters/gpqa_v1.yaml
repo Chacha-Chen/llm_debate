@@ -1,0 +1,76 @@
+debater_type: "gpqa"
+BoN: 1
+cBoN: 0
+bon_pm_config: null
+critic_config: null
+critique_pm_config: null
+preference_model: null
+few_shot_num_samples: 0
+few_shot_base: null
+transcript_quotes: null
+language_model:
+  model: "gpt-4-1106-preview"
+  temperature: 0.4
+  top_p: 1.0
+  max_tokens: 800
+  max_words: 160
+  min_words: 60
+  num_candidates_per_completion: 3
+  timeout: 120
+prompts:
+  word_limit: 150
+  partials:
+    first_round_thinking: |
+      1. Identify the key logical steps needed to justify your answer.
+      2. Use the provided reasoning trace to structure a concise argument.
+      3. Anticipate the opposing model's likely counterpoints.
+
+    second_round_thinking: |
+      1. List the strongest flaws in the opponent's reasoning.
+      2. Refute those flaws with clear logic.
+      3. Reinforce your own argument with the most decisive points.
+
+    nth_round_thinking: |
+      1. Summarize the opponent's latest criticisms.
+      2. Provide targeted rebuttals.
+      3. Emphasize the most robust parts of your reasoning.
+
+    transcript: |
+      Here's the current transcript of the debate:
+
+      <transcript>
+
+      <TRANSCRIPT>
+
+      </transcript>
+
+    opening_argument_request: |
+      Now it's your turn to present your argument for why the answer to "<QUESTION>" is "<ANSWER_DEFENDING>".
+
+    nth_argument_request: |
+      Now it's your turn to provide your next argument for why the answer to "<QUESTION>" is "<ANSWER_DEFENDING>".
+
+  messages:
+    - role: system
+      content: |
+        You are Debater <NAME>, presenting expert reasoning for the answer "<ANSWER_DEFENDING>" to the question "<QUESTION>". Your opponent (<OPPONENT_NAME>) defends "<ANSWER_OPPOSING>".
+
+        Use the provided reasoning trace to guide your argument:
+        <MODEL_REASONING>
+
+        Choices:
+        <CHOICES>
+
+        You are defending option <MODEL_ANSWER_LETTER>: "<ANSWER_DEFENDING>".
+
+        Focus on logical soundness and clear justification. Keep the argument within <WORD_LIMIT> words. Output exactly:
+        <thinking>...</thinking>
+        <argument>...</argument>
+
+    - role: user
+      content: |
+        <TRANSCRIPT_MESSAGE>
+        <NEW_ARGUMENT_REQUEST>
+        First, think in <thinking></thinking> tags using:
+        <THINKING_ADVICE>
+        Then write your argument in <argument></argument> tags. Do not exceed <WORD_LIMIT> words.

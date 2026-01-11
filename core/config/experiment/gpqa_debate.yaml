@@ -1,0 +1,14 @@
+# @package _global_
+
+defaults:
+  - debaters/gpqa_v1@correct_debater
+  - debaters/gpqa_v1@incorrect_debater
+  - rollout: gpqa_sim
+  - judge/gpqa/default@judge
+  - _self_
+
+method: debate
+method_type: sim
+use_intermediary: false
+dataset_type: gpqa
+dataset: gpqa

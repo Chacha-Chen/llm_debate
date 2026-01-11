@@ -113,6 +113,11 @@ async def async_main(cfg: DictConfig):
         logger_level=cfg.logging,
         anthropic_tag=cfg.anthropic_tag,
         openai_tag=cfg.openai_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_tag=cfg.openrouter_tag,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
     )
     random.seed(cfg.seed)
 
@@ -122,6 +127,13 @@ async def async_main(cfg: DictConfig):
         openai_fraction_rate_limit=cfg.openai_fraction_rate_limit,
         print_prompt_and_response=cfg.print_prompt_and_response,
         organization=cfg.organization,
+        openai_tag=cfg.openai_tag,
+        openrouter_tag=cfg.openrouter_tag,
+        llm_provider=cfg.llm_provider,
+        openrouter_base_url=cfg.openrouter_base_url,
+        openrouter_referer=cfg.openrouter_referer,
+        openrouter_title=cfg.openrouter_title,
+        openrouter_model_overrides=dict(cfg.openrouter_model_overrides),
     )
 
     exp_dir = Path(cfg.exp_dir)

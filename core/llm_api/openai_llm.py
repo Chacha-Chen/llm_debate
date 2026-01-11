@@ -36,7 +36,9 @@ def price_per_token(model_id: str) -> tuple[float, float]:
     """
     Returns the (input token, output token) price for the given model id.
     """
-    if model_id == "gpt-4-1106-preview":
+    if model_id in {"gpt-4o", "openai/gpt-4o"}:
+        prices = 0.005, 0.015
+    elif model_id == "gpt-4-1106-preview":
         prices = 0.01, 0.03
     elif model_id == "gpt-3.5-turbo-1106":
         prices = 0.001, 0.002
@@ -56,8 +58,13 @@ def price_per_token(model_id: str) -> tuple[float, float]:
         prices = 0.02, 0.02
     elif "ft:gpt-3.5-turbo" in model_id:
         prices = 0.012, 0.016
+    elif model_id.startswith("anthropic/claude-3.5-sonnet"):
+        prices = 0.003, 0.015
+    elif model_id.startswith("anthropic/claude-3-haiku"):
+        prices = 0.0008, 0.004
     else:
-        raise ValueError(f"Invalid model id: {model_id}")
+        # Default to inexpensive pricing to keep sorting stable for unknown models
+        prices = 0.001, 0.003
 
     return tuple(price / 1000 for price in prices)
 
@@ -112,6 +119,10 @@ class OpenAIModel(ModelAPIProtocol):
     frac_rate_limit: float
     organization: str
     print_prompt_and_response: bool = False
+    base_url: str | None = None
+    referer: str | None = None
+    app_title: str | None = None
+    allow_any_model: bool = False
     model_ids: set[str] = attrs.field(init=False, default=attrs.Factory(set))
 
     # rate limit
@@ -276,6 +287,7 @@ class OpenAIModel(ModelAPIProtocol):
 
 
 _GPT_4_MODELS = [
+    "gpt-4o",
     "gpt-4",
     "gpt-4-0314",
     "gpt-4-0613",
@@ -299,25 +311,40 @@ class OpenAIChatModel(OpenAIModel):
         return prompt
 
     def _assert_valid_id(self, model_id: str):
+        if self.allow_any_model:
+            return
         if "ft:" in model_id:
             model_id = model_id.split(":")[1]
         assert model_id in GPT_CHAT_MODELS, f"Invalid model id: {model_id}"
 
     @retry(stop=stop_after_attempt(8), wait=wait_fixed(2))
     async def _get_dummy_response_header(self, model_id: str):
-        url = "https://api.openai.com/v1/chat/completions"
+        url = f"{(self.base_url or 'https://api.openai.com/v1').rstrip('/')}/chat/completions"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {openai.api_key}",
-            "OpenAI-Organization": self.organization,
         }
+        if self.organization is not None:
+            headers["OpenAI-Organization"] = self.organization
+        if self.referer:
+            headers["HTTP-Referer"] = self.referer
+        if self.app_title:
+            headers["X-Title"] = self.app_title
         data = {
             "model": model_id,
             "messages": [{"role": "user", "content": "Say 1"}],
         }
         response = requests.post(url, headers=headers, json=data)
         if "x-ratelimit-limit-tokens" not in response.headers:
-            raise RuntimeError("Failed to get dummy response header")
+            LOGGER.warning(
+                "Rate limit headers missing; using default OpenRouter-like capacities"
+            )
+            return {
+                "x-ratelimit-limit-tokens": "1000000",
+                "x-ratelimit-limit-requests": "1000",
+                "x-ratelimit-remaining-tokens": "1000000",
+                "x-ratelimit-remaining-requests": "1000",
+            }
         return response.headers
 
     @staticmethod
@@ -416,6 +443,8 @@ class OpenAIBaseModel(OpenAIModel):
         return prompt
 
     def _assert_valid_id(self, model_id: str):
+        if self.allow_any_model:
+            return
         assert model_id in BASE_MODELS, f"Invalid model id: {model_id}"
 
     @retry(stop=stop_after_attempt(8), wait=wait_fixed(2))

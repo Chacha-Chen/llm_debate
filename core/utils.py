@@ -38,12 +38,32 @@ def setup_environment(
     logger_level: str = "info",
     openai_tag: str = "API_KEY",
     organization: str = None,
+    llm_provider: str = "openai",
+    openrouter_tag: str = "OPENROUTER_API_KEY",
+    openrouter_base_url: str = "https://openrouter.ai/api/v1",
+    openrouter_referer: str | None = None,
+    openrouter_title: str | None = None,
 ):
     setup_logging(logger_level)
     secrets = load_secrets("SECRETS")
-    openai.api_key = secrets[openai_tag]
+    provider = (llm_provider or "openai").lower()
+    if provider == "openrouter":
+        openai.api_key = secrets[openrouter_tag]
+        openai.api_base = openrouter_base_url
+        if openrouter_referer:
+            openai.default_headers = {
+                **getattr(openai, "default_headers", {}),
+                "HTTP-Referer": openrouter_referer,
+            }
+        if openrouter_title:
+            openai.default_headers = {
+                **getattr(openai, "default_headers", {}),
+                "X-Title": openrouter_title,
+            }
+    else:
+        openai.api_key = secrets[openai_tag]
     os.environ["ANTHROPIC_API_KEY"] = secrets[anthropic_tag]
-    if organization is not None:
+    if organization is not None and provider != "openrouter":
         openai.organization = secrets[organization]
 
 
@@ -65,7 +85,10 @@ def load_secrets(file_path):
     secrets = {}
     with open(file_path) as f:
         for line in f:
-            key, value = line.strip().split("=", 1)
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            key, value = stripped.split("=", 1)
             secrets[key] = value
     return secrets
 

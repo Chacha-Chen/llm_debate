@@ -5,17 +5,21 @@ from typing import Optional
 from omegaconf import DictConfig
 
 from core.agents.debater_base import DebaterBase, DebaterConfig
+from core.agents.debater_gpqa import DebaterGPQA
 from core.agents.debater_quality import DebaterQuality
 from core.agents.judge_base import JudgeBase, JudgeConfig
+from core.agents.judge_gpqa import JudgeGPQA
 from core.agents.judge_quality import JudgeQuality
 from core.file_handler import Method
 from core.llm_api.llm import ModelAPI
+from core.rollouts.gpqa_sim import GPQASimRollout
 from core.rollouts.quality_seq import QualitySeqRollout
 from core.rollouts.quality_sim import QualitySimRollout
 from core.rollouts.rollout_base import RolloutBase, RolloutConfig
 
 DEBATER_CLASSES = {
     "quality": DebaterQuality,
+    "gpqa": DebaterGPQA,
 }
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +38,7 @@ def create_debater(
 
 JUDGE_CLASSES = {
     "quality": JudgeQuality,
+    "gpqa": JudgeGPQA,
 }
 
 
@@ -53,6 +58,7 @@ def create_judge(
 ROLLOUT_CLASSES = {
     "quality_sim": QualitySimRollout,
     "quality_seq": QualitySeqRollout,
+    "gpqa_sim": GPQASimRollout,
 }
 
 

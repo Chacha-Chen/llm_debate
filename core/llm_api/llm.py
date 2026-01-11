@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Literal, Optional, Union
 
 import attrs
+import openai
 
 from core.llm_api.anthropic_llm import ANTHROPIC_MODELS, AnthropicChatModel
 from core.llm_api.base_llm import LLMResponse, ModelAPIProtocol
@@ -30,6 +31,13 @@ class ModelAPI:
         default=0.99, validator=attrs.validators.lt(1)
     )
     organization: str = "DEFAULT_ORG"
+    openai_tag: str = "API_KEY"
+    openrouter_tag: str = "OPENROUTER_API_KEY"
+    llm_provider: str = "openai"  # openai | openrouter
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_referer: str | None = None
+    openrouter_title: str | None = None
+    openrouter_model_overrides: dict[str, str] = attrs.field(factory=dict, kw_only=True)
     print_prompt_and_response: bool = False
 
     _openai_base: OpenAIBaseModel = attrs.field(init=False)
@@ -42,17 +50,37 @@ class ModelAPI:
 
     def __attrs_post_init__(self):
         secrets = load_secrets("SECRETS")
+        provider = (self.llm_provider or "openai").lower()
+        allow_any_model = provider == "openrouter"
+
+        if provider == "openrouter":
+            openai.api_key = secrets[self.openrouter_tag]
+            openai.api_base = self.openrouter_base_url
+            organization_value = None
+        else:
+            openai.api_key = secrets[self.openai_tag]
+            openai.api_base = "https://api.openai.com/v1"
+            organization_value = secrets.get(self.organization, self.organization)
+
         if self.organization is None:
             self.organization = "DEFAULT_ORG"
         self._openai_base = OpenAIBaseModel(
             frac_rate_limit=self.openai_fraction_rate_limit,
-            organization=secrets[self.organization],
+            organization=organization_value,
             print_prompt_and_response=self.print_prompt_and_response,
+            base_url=self.openrouter_base_url if provider == "openrouter" else None,
+            referer=self.openrouter_referer,
+            app_title=self.openrouter_title,
+            allow_any_model=allow_any_model,
         )
         self._openai_chat = OpenAIChatModel(
             frac_rate_limit=self.openai_fraction_rate_limit,
-            organization=secrets[self.organization],
+            organization=organization_value,
             print_prompt_and_response=self.print_prompt_and_response,
+            base_url=self.openrouter_base_url if provider == "openrouter" else None,
+            referer=self.openrouter_referer,
+            app_title=self.openrouter_title,
+            allow_any_model=allow_any_model,
         )
         self._anthropic_chat = AnthropicChatModel(
             num_threads=self.anthropic_num_threads,
@@ -135,16 +163,25 @@ class ModelAPI:
 
         if isinstance(model_ids, str):
             model_ids = [model_ids]
-            # # trick to double rate limit for most recent model only
-            # if model_ids.endswith("-0613"):
-            #     model_ids = [model_ids, model_ids.replace("-0613", "")]
-            #     print(f"doubling rate limit for most recent model {model_ids}")
-            # elif model_ids.endswith("-0914"):
-            #     model_ids = [model_ids, model_ids.replace("-0914", "")]
-            # else:
-            #     model_ids = [model_ids]
+
+        def _resolve_model_ids(ids: list[str]) -> list[str]:
+            if (self.llm_provider or "openai").lower() != "openrouter":
+                return ids
+            return [self.openrouter_model_overrides.get(mid, mid) for mid in ids]
+
+        model_ids = _resolve_model_ids(model_ids)
+        # # trick to double rate limit for most recent model only
+        # if model_ids.endswith("-0613"):
+        #     model_ids = [model_ids, model_ids.replace("-0613", "")]
+        #     print(f"doubling rate limit for most recent model {model_ids}")
+        # elif model_ids.endswith("-0914"):
+        #     model_ids = [model_ids, model_ids.replace("-0914", "")]
+        # else:
+        #     model_ids = [model_ids]
 
         def model_id_to_class(model_id: str) -> ModelAPIProtocol:
+            if (self.llm_provider or "openai").lower() == "openrouter":
+                return self._openai_chat
             if model_id in BASE_MODELS:
                 return self._openai_base
             elif model_id in GPT_CHAT_MODELS or "ft:gpt-3.5-turbo" in model_id:
