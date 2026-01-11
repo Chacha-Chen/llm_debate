@@ -1,5 +1,5 @@
 rollout_type: "gpqa_sim"
-num_steps: 3
+num_steps: 5
 name1: "Debater 1"  # Overridden by GPQASimRollout._names_for_row() but kept for consistency
 name2: "Debater 2"  # Overridden by GPQASimRollout._names_for_row() but kept for consistency
 consultant_name: "Consultant"
