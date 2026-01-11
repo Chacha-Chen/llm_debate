@@ -48,6 +48,17 @@ python -m core.scoring.gpqa_accuracy score_both \
 
 **Why `limit=2` is good for testing:** it makes debate/judge finish quickly and cheaply while exercising the full pipeline. Remove `limit` for full runs.
 
+**Where to look (sanity checks for the smoke test):**
+- **After load**: `./data/gpqa_runs_test/debate_sim/data0.csv` exists (should have `complete=False` initially).
+- **After debate**:
+  - `./data/gpqa_runs_test/debate_sim/data0.csv` and `./data/gpqa_runs_test/debate_sim/data0_swap.csv`
+  - rows have `complete=True` and `transcript` is non-empty JSON
+- **After judge**:
+  - `./data/gpqa_runs_test/debate_sim/gpt-4o-mini/data0_judgement.csv`
+  - `./data/gpqa_runs_test/debate_sim/gpt-4o-mini/data0_swap_judgement.csv`
+  - rows have `complete_judge=True` and `answer_judge` filled
+- **After scoring**: metrics printed in the terminal (`score_both` averages swap/non-swap).
+
 ## 1) Generate the dataset CSV (from the two trace JSONs)
 This produces a CSV of pairs where the two models disagree and exactly one is correct. If you omit `--limit`, it writes the full filtered set.
 
