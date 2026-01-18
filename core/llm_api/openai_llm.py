@@ -161,11 +161,13 @@ class OpenAIModel(ModelAPIProtocol):
     @staticmethod
     def _create_prompt_history_file(prompt):
         filename = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}_prompt.txt"
-        with open(os.path.join("prompt_history", filename), "w") as f:
+        path = os.path.join("prompt_history", filename)
+        with open(path, "w") as f:
             json_str = json.dumps(prompt, indent=4)
             json_str = json_str.replace("\\n", "\n")
             f.write(json_str)
 
+        LOGGER.info(f"Saved prompt/response to {path}")
         return filename
 
     @staticmethod
@@ -378,6 +380,122 @@ class OpenAIChatModel(OpenAIModel):
 
         return top_logprobs
 
+    @staticmethod
+    def _extract_message_text(message) -> str:
+        """
+        OpenRouter (and some OpenAI-compatible gateways) may return message content in
+        non-string formats (e.g., list of parts). This normalizes to a plain string.
+        """
+        # Common case: already a string
+        content = getattr(message, "content", None)
+        if isinstance(content, str) and content.strip():
+            return content
+
+        # Try dict-style access (OpenAIObject supports .get)
+        try:
+            content = message.get("content")
+        except Exception:
+            content = None
+
+        parts: list[str] = []
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, str):
+                    parts.append(part)
+                elif isinstance(part, dict):
+                    # Common schema: {"type":"text","text":"..."}
+                    for key in ("text", "content", "value"):
+                        val = part.get(key)
+                        if isinstance(val, str) and val:
+                            parts.append(val)
+                            break
+        elif isinstance(content, dict):
+            for key in ("text", "content", "value"):
+                val = content.get(key)
+                if isinstance(val, str) and val:
+                    parts.append(val)
+                    break
+
+        text = "".join(parts).strip()
+        if text:
+            return text
+
+        def _extract_textish(obj) -> str:
+            if obj is None:
+                return ""
+            if isinstance(obj, str):
+                return obj
+            if isinstance(obj, dict):
+                for k in ("text", "content", "value", "reasoning"):
+                    v = obj.get(k)
+                    if isinstance(v, str) and v:
+                        return v
+                return ""
+            if isinstance(obj, list):
+                parts: list[str] = []
+                for item in obj:
+                    t = _extract_textish(item)
+                    if t:
+                        parts.append(t)
+                return "".join(parts)
+            return ""
+
+        # Fallback: some "thinking" models expose text in separate fields
+        for key in ("reasoning", "reasoning_details", "analysis", "thought"):
+            try:
+                val = message.get(key)
+            except Exception:
+                val = getattr(message, key, None)
+            text = _extract_textish(val).strip()
+            if text:
+                return text
+
+        return ""
+
+    @classmethod
+    def _extract_choice_text(cls, choice) -> str:
+        """
+        Extract assistant text from a ChatCompletion choice.
+
+        Some OpenAI-compatible providers (incl. OpenRouter) may attach thinking output
+        in non-standard fields on either `choice.message` or directly on `choice`.
+        """
+        # Prefer standard message parsing first
+        try:
+            msg = getattr(choice, "message", None) or choice.get("message")
+        except Exception:
+            msg = getattr(choice, "message", None)
+        text = cls._extract_message_text(msg).strip() if msg is not None else ""
+        if text:
+            return text
+
+        # Fallback: inspect choice-level fields
+        for key in ("content", "text", "reasoning", "reasoning_details", "analysis"):
+            try:
+                val = choice.get(key)
+            except Exception:
+                val = getattr(choice, key, None)
+            # Reuse message extractor's textish logic by wrapping in a dummy object where possible
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+            if isinstance(val, (dict, list)):
+                # Use the message extractor's internal logic by pretending this is "content"
+                class _Dummy:
+                    def __init__(self, content):
+                        self.content = content
+
+                    def get(self, k, default=None):
+                        return getattr(self, k, default)
+
+                dummy = _Dummy(val)
+                candidate = cls._extract_message_text(dummy).strip()
+                if candidate:
+                    return candidate
+
+        return ""
+
     async def _make_api_call(
         self, prompt: OAIChatPrompt, model_id, start_time, **params
     ) -> list[LLMResponse]:
@@ -396,12 +514,13 @@ class OpenAIChatModel(OpenAIModel):
         return [
             LLMResponse(
                 model_id=model_id,
-                completion=choice.message.content,
+                completion=self._extract_choice_text(choice),
                 stop_reason=choice.finish_reason,
                 api_duration=api_duration,
                 duration=duration,
                 cost=context_cost
-                + count_tokens(choice.message.content) * completion_token_cost,
+                + count_tokens(self._extract_choice_text(choice))
+                * completion_token_cost,
                 logprobs=self.convert_top_logprobs(choice.logprobs)
                 if choice.logprobs is not None
                 else None,

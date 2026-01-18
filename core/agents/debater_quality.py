@@ -245,8 +245,11 @@ class DebaterQuality(DebaterBase):
             argument = self.extract_argument(completion)
         except ValueError:
             return False
-        if "<quote>" not in argument:
-            return False
+        # Quotes are only expected for story-based (Quality) debates.
+        # GPQA has no story context, so requiring <quote> would reject all valid completions.
+        if getattr(self.config, "debater_type", None) != "gpqa":
+            if "<quote>" not in argument:
+                return False
         word_count = len(argument.split(" "))
         return (
             word_count >= self.config.language_model.min_words

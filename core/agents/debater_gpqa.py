@@ -18,6 +18,11 @@ class DebaterGPQA(DebaterQuality):
         "gpt-4-1106-preview": "openai/gpt-4o",
         "claudesonnet4": "anthropic/claude-sonnet-4",
         "claude-sonnet-4": "anthropic/claude-sonnet-4",
+        # GPQA (OpenRouter) examples
+        # If gpqa_loader.py writes MODEL_A_NAME="Kimi K2 Thinking", normalized becomes "kimik2thinking".
+        "kimik2thinking": "moonshotai/kimi-k2-thinking",
+        # If gpqa_loader.py writes MODEL_B_NAME="GLM-4.6", normalized becomes "glm-4.6".
+        "glm-4.6": "z-ai/glm-4.6",
     }
 
     def _internal_model_key(self, transcript: TranscriptConfig) -> str:
@@ -186,15 +191,24 @@ class DebaterGPQA(DebaterQuality):
         return responses
 
     def is_valid(self, completion: str):
-        """GPQA: only require argument tags and word limits; no quote requirements."""
-        if "<argument>" not in completion:
+        """GPQA: be permissive.
+
+        GPQA has no story/quote verification. Also, many OpenRouter models will:
+        - omit tags occasionally, and/or
+        - exceed the requested word limit.
+
+        We accept these and truncate later, otherwise the rollout frequently fails
+        with "responses are invalid, retry." and never reaches `complete=True`.
+        """
+        if not completion or not str(completion).strip():
             return False
         try:
-            argument = self.extract_argument(completion)
-        except ValueError:
+            argument = self.extract_argument(completion, strict=False)
+        except Exception:
             return False
         word_count = len(argument.split(" "))
-        return (
-            word_count >= self.config.language_model.min_words
-            and word_count <= self.config.language_model.max_words
-        )
+        return word_count >= self.config.language_model.min_words
+
+    def extract_argument(self, response, strict=True):
+        # For GPQA we prefer to wrap malformed outputs rather than hard-fail.
+        return super().extract_argument(response, strict=False)

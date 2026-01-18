@@ -93,6 +93,10 @@ python -m core.judge \
   ++judge.language_model.model=gpt-4o-mini \
   ++judge_name=gpt-4o-mini
 ```
+or change the judge mdoel as follows:
+```
+python -m core.judge   +experiment=gpqa_debate   exp_dir=./data/gpqa_runs_fixed_bug_0107   dataset_type=gpqa   llm_provider=openrouter   ++judge.language_model.model=openai/gpt-4   ++judge_name=openai/gpt-4
+```
 
 ## 4) Score accuracy (average across swap)
 ```bash
