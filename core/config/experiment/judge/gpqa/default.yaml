@@ -19,8 +19,8 @@ prompts:
         Choices:
         <CHOICES>
 
-        Debater 1 (<NAME_A>) defends option <MODEL_A_ANSWER_LETTER>: <ANSWER_A>
-        Debater 2 (<NAME_B>) defends option <MODEL_B_ANSWER_LETTER>: <ANSWER_B>
+        Debater 1 defends option <MODEL_A_ANSWER_LETTER>: <ANSWER_A>
+        Debater 2 defends option <MODEL_B_ANSWER_LETTER>: <ANSWER_B>
 
         Debater reasoning traces (anonymized):
         - <MODEL_A_NAME>: <MODEL_A_REASONING>

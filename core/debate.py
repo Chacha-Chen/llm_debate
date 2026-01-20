@@ -180,7 +180,13 @@ async def async_main(cfg: DictConfig):
 
     # For sequential/intermediary debate you must run swap at rollout time since it is not possible to do before judging.
     # For GPQA, we also want a swapped run (to mitigate prefix bias) without changing the rollout protocol.
-    should_run_swap = (
+    #
+    # Allow disabling via optional Hydra override:
+    #   +run_swap=false
+    run_swap_cfg = getattr(cfg, "run_swap", True)
+    if isinstance(run_swap_cfg, str):
+        run_swap_cfg = run_swap_cfg.strip().lower() not in {"0", "false", "no", "off"}
+    should_run_swap = bool(run_swap_cfg) and (
         cfg.method_type == "seq"
         or (cfg.method == "debate" and cfg.use_intermediary)
         or getattr(cfg, "dataset_type", "quality") == "gpqa"

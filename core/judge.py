@@ -183,37 +183,45 @@ async def async_main(cfg: DictConfig):
         judge_type=cfg.judge_type,
     )
 
-    # Run swap = True
-    filename_swap = experiment.get_debate_filename(seed=cfg.seed, swap=True)
-    filename_swap_judgement = experiment.get_judge_filename(
-        cfg.judge_name, seed=cfg.seed, swap=True, exp_suffix=exp_suffix
-    )
-    if not filename_swap_judgement.exists():
-        if cfg.method_type == "seq" or (
-            cfg.method == "debate" and cfg.use_intermediary
-        ):
-            assert (
-                filename_swap.exists()
-            ), f"{filename_swap} does not exist and is required for sequential (or intermediary debate)"
-            copyfile(filename_swap, filename_swap_judgement)
-        else:
-            # If debate is seq, we insist that a swapped debate file exists. In other cases, we should still prefer using a swapped debate file if it's available.
-            if filename_swap.exists():
+    # Run swap = True (unless disabled via +run_swap=false)
+    run_swap_cfg = getattr(cfg, "run_swap", True)
+    if isinstance(run_swap_cfg, str):
+        run_swap_cfg = run_swap_cfg.strip().lower() not in {"0", "false", "no", "off"}
+    should_run_swap = bool(run_swap_cfg)
+
+    if should_run_swap:
+        filename_swap = experiment.get_debate_filename(seed=cfg.seed, swap=True)
+        filename_swap_judgement = experiment.get_judge_filename(
+            cfg.judge_name, seed=cfg.seed, swap=True, exp_suffix=exp_suffix
+        )
+        if not filename_swap_judgement.exists():
+            if cfg.method_type == "seq" or (
+                cfg.method == "debate" and cfg.use_intermediary
+            ):
+                assert (
+                    filename_swap.exists()
+                ), f"{filename_swap} does not exist and is required for sequential (or intermediary debate)"
                 copyfile(filename_swap, filename_swap_judgement)
             else:
-                copyfile(filename, filename_swap_judgement)
+                # If debate is seq, we insist that a swapped debate file exists. In other cases, we should still prefer using a swapped debate file if it's available.
+                if filename_swap.exists():
+                    copyfile(filename_swap, filename_swap_judgement)
+                else:
+                    copyfile(filename, filename_swap_judgement)
 
-    complete_swap = await async_function_with_retry(
-        run_judge,
-        judge,
-        filename_swap_judgement,
-        anthropic_num_threads=cfg.anthropic_num_threads,
-        round_limit=cfg.round_limit,
-        limit=cfg.limit,
-        swap=True,
-        n_vote=cfg.judge.n_vote,
-        judge_type=cfg.judge_type,
-    )
+        complete_swap = await async_function_with_retry(
+            run_judge,
+            judge,
+            filename_swap_judgement,
+            anthropic_num_threads=cfg.anthropic_num_threads,
+            round_limit=cfg.round_limit,
+            limit=cfg.limit,
+            swap=True,
+            n_vote=cfg.judge.n_vote,
+            judge_type=cfg.judge_type,
+        )
+    else:
+        complete_swap = True
     return complete and complete_swap
 
 

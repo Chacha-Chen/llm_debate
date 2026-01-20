@@ -76,7 +76,6 @@ openrouter_referer: null  # optional: your site/domain for OpenRouter
 openrouter_title: null    # optional: app title for OpenRouter
 openrouter_model_overrides:
   gpt-4-1106-preview: openai/gpt-4o
-  gpt-4: openai/gpt-4
   claude-2.1: anthropic/claude-3.5-sonnet
   claude-2.0: anthropic/claude-3.5-sonnet
   claude-instant-1: anthropic/claude-3-haiku

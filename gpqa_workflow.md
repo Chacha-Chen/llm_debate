@@ -29,7 +29,8 @@ python -m core.debate \
   exp_dir=./data/gpqa_runs_test \
   dataset_type=gpqa \
   llm_provider=openrouter \
-  limit=2
+  limit=2 \
+  +run_swap=false
 
 python -m core.judge \
   +experiment=gpqa_debate \
@@ -38,9 +39,10 @@ python -m core.judge \
   llm_provider=openrouter \
   limit=2 \
   ++judge.language_model.model=gpt-4o-mini \
-  ++judge_name=gpt-4o-mini
+  ++judge_name=gpt-4o-mini \
+  +run_swap=false
 
-python -m core.scoring.gpqa_accuracy score_both \
+python -m core.scoring.gpqa_accuracy score_file \
   --filename=./data/gpqa_runs_test/debate_sim/data0.csv \
   --judge_name=gpt-4o-mini \
   --verbose=True
@@ -51,13 +53,12 @@ python -m core.scoring.gpqa_accuracy score_both \
 **Where to look (sanity checks for the smoke test):**
 - **After load**: `./data/gpqa_runs_test/debate_sim/data0.csv` exists (should have `complete=False` initially).
 - **After debate**:
-  - `./data/gpqa_runs_test/debate_sim/data0.csv` and `./data/gpqa_runs_test/debate_sim/data0_swap.csv`
+  - `./data/gpqa_runs_test/debate_sim/data0.csv` (swap disabled by default)
   - rows have `complete=True` and `transcript` is non-empty JSON
 - **After judge**:
-  - `./data/gpqa_runs_test/debate_sim/gpt-4o-mini/data0_judgement.csv`
-  - `./data/gpqa_runs_test/debate_sim/gpt-4o-mini/data0_swap_judgement.csv`
+  - `./data/gpqa_runs_test/debate_sim/gpt-4o-mini/data0_judgement.csv` (swap disabled by default)
   - rows have `complete_judge=True` and `answer_judge` filled
-- **After scoring**: metrics printed in the terminal (`score_both` averages swap/non-swap).
+- **After scoring**: metrics printed in the terminal. Note: `score_both` requires both swap and non-swap files; if you only ran with `+run_swap=false`, use `score_file` instead.
 
 ## 1) Generate the dataset CSV (from the two trace JSONs)
 This produces a CSV of pairs where the two models disagree and exactly one is correct. If you omit `--limit`, it writes the full filtered set.
@@ -66,9 +67,11 @@ This produces a CSV of pairs where the two models disagree and exactly one is co
 python -m core.load.gpqa_loader ./data/gpqa_runs/debate_sim/data0.csv
 ```
 
-## 2) Run debates (writes both swap and non-swap)
-This will create:
+## 2) Run debates (swap disabled by default)
+With `+run_swap=false` (default), this will create:
 - `./data/gpqa_runs/debate_sim/data0.csv`
+
+To enable swap runs, remove `+run_swap=false` or set `+run_swap=true` to also create:
 - `./data/gpqa_runs/debate_sim/data0_swap.csv`
 
 ```bash
@@ -76,12 +79,15 @@ python -m core.debate \
   +experiment=gpqa_debate \
   exp_dir=./data/gpqa_runs \
   dataset_type=gpqa \
-  llm_provider=openrouter
+  llm_provider=openrouter \
+  +run_swap=false
 ```
 
-## 3) Run judge (writes both swap and non-swap judgements)
-This will create (under a judge subdir):
+## 3) Run judge (swap disabled by default)
+With `+run_swap=false` (default), this will create (under a judge subdir):
 - `.../gpt-4o-mini/data0_judgement.csv`
+
+To enable swap runs, remove `+run_swap=false` or set `+run_swap=true` to also create:
 - `.../gpt-4o-mini/data0_swap_judgement.csv`
 
 ```bash
@@ -91,16 +97,26 @@ python -m core.judge \
   dataset_type=gpqa \
   llm_provider=openrouter \
   ++judge.language_model.model=gpt-4o-mini \
-  ++judge_name=gpt-4o-mini
+  ++judge_name=gpt-4o-mini \
+  +run_swap=false
 ```
 or change the judge mdoel as follows:
 ```
-python -m core.judge   +experiment=gpqa_debate   exp_dir=./data/gpqa_runs_fixed_bug_0107   dataset_type=gpqa   llm_provider=openrouter   ++judge.language_model.model=openai/gpt-4   ++judge_name=openai/gpt-4
+python -m core.judge   +experiment=gpqa_debate   exp_dir=./data/gpqa_runs_fixed_bug_0107   dataset_type=gpqa   llm_provider=openrouter   ++judge.language_model.model=openai/gpt-4   ++judge_name=openai/gpt-4   +run_swap=false
 ```
 
-## 4) Score accuracy (average across swap)
+## 4) Score accuracy
+If you ran with swap enabled (both `data0_judgement.csv` and `data0_swap_judgement.csv` exist), average across swap:
 ```bash
 python -m core.scoring.gpqa_accuracy score_both \
+  --filename=./data/gpqa_runs/debate_sim/data0.csv \
+  --judge_name=gpt-4o-mini \
+  --verbose=True
+```
+
+If you only ran with `+run_swap=false`, score the single file:
+```bash
+python -m core.scoring.gpqa_accuracy score_file \
   --filename=./data/gpqa_runs/debate_sim/data0.csv \
   --judge_name=gpt-4o-mini \
   --verbose=True

@@ -39,11 +39,20 @@ class DebaterGPQA(DebaterQuality):
 
         Display names shown to debaters and judge are "Debater 1" and "Debater 2" to avoid
         confusion with multiple choice options (A, B, C, D).
+
+        Uses correct_model from transcript.extra to bind to the correct model_a/model_b data,
+        regardless of swap status. This ensures each debater always sees the correct model's
+        reasoning trace, even when swap=True changes the "Debater 1/2" labels.
         """
+        extra = transcript.extra or {}
+        correct_model = str(extra.get("correct_model", "A")).upper()
+
         if self.correct:
-            return "A" if transcript.names.correct == "Debater 1" else "B"
+            # This debater represents the correct model
+            return correct_model  # "A" or "B"
         else:
-            return "A" if transcript.names.incorrect == "Debater 1" else "B"
+            # This debater represents the incorrect model
+            return "B" if correct_model == "A" else "A"
 
     def _model_id_for_label(self, transcript: TranscriptConfig) -> str:
         """Map model_a/model_b name to provider ID; fall back to config default."""
@@ -191,24 +200,15 @@ class DebaterGPQA(DebaterQuality):
         return responses
 
     def is_valid(self, completion: str):
-        """GPQA: be permissive.
-
-        GPQA has no story/quote verification. Also, many OpenRouter models will:
-        - omit tags occasionally, and/or
-        - exceed the requested word limit.
-
-        We accept these and truncate later, otherwise the rollout frequently fails
-        with "responses are invalid, retry." and never reaches `complete=True`.
-        """
-        if not completion or not str(completion).strip():
+        """GPQA: only require argument tags and word limits; no quote requirements."""
+        if "<argument>" not in completion:
             return False
         try:
-            argument = self.extract_argument(completion, strict=False)
-        except Exception:
+            argument = self.extract_argument(completion)
+        except ValueError:
             return False
         word_count = len(argument.split(" "))
-        return word_count >= self.config.language_model.min_words
-
-    def extract_argument(self, response, strict=True):
-        # For GPQA we prefer to wrap malformed outputs rather than hard-fail.
-        return super().extract_argument(response, strict=False)
+        return (
+            word_count >= self.config.language_model.min_words
+            and word_count <= self.config.language_model.max_words
+        )
