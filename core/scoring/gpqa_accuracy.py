@@ -40,6 +40,7 @@ def func_correct_gpqa(
     if correct_answer_letter:
         # Direct: use the stored letter
         correct_letter = str(correct_answer_letter).strip().upper()
+        choices_map = None
     elif choices_str and correct_answer_text:
         # Fallback: reverse-lookup from text (for backward compatibility with old CSVs)
         choices_map = parse_choices(choices_str)
@@ -60,13 +61,25 @@ def func_correct_gpqa(
                 "Missing both correct_answer_letter and (choices_str + correct_answer_text)"
             )
         return "Unknown"
+    
+    # Parse choices for available options if not already parsed
+    if choices_map is None and choices_str:
+        choices_map = parse_choices(choices_str)
 
-    # Extract judge's answer letter (A, B, C, or D)
+    # Extract judge's answer letter (supports any letter A-Z, not just A-D)
     judge_picked_letter = None
-    for letter in ["A", "B", "C", "D"]:
-        if find_answer(judgement, letter):
-            judge_picked_letter = letter
-            break
+    # First try explicit "Answer: X" pattern
+    answer_pattern = re.search(r'Answer:\s*([A-Z])(?:\s|$|\.|,)', judgement, re.IGNORECASE)
+    if answer_pattern:
+        judge_picked_letter = answer_pattern.group(1).upper()
+    else:
+        # Fallback: look for any single capital letter using existing find_answer function
+        # Try all possible letters A-Z
+        for letter_code in range(ord('A'), ord('Z') + 1):
+            letter = chr(letter_code)
+            if find_answer(judgement, letter):
+                judge_picked_letter = letter
+                break
 
     # If no letter found, check for inconclusive
     if judge_picked_letter is None:

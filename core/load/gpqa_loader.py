@@ -14,18 +14,25 @@ from core.load.gpqa import (
 )
 from core.utils import typer_async
 
-MODEL_A_NAME = "GPT-4o"
-MODEL_B_NAME = "Claude Sonnet 4"
+# Default model configuration (GPQA)
+DEFAULT_MODEL_A_NAME = "GPT-4o"
+DEFAULT_MODEL_B_NAME = "Claude Sonnet 4"
 
-MODEL_A_FILE = Path("data/gpqa/GPQA_Reasoning_Traces_openai_gpt-4o_main_all_448.json")
-MODEL_B_FILE = Path(
+DEFAULT_MODEL_A_FILE = Path("data/gpqa/GPQA_Reasoning_Traces_openai_gpt-4o_main_all_448.json")
+DEFAULT_MODEL_B_FILE = Path(
     "data/gpqa/GPQA_Reasoning_Traces_anthropic_claude-sonnet-4_main_all_448.json"
 )
 
 
-def _load_entries() -> Dict[str, Dict[int, GPQAEntry]]:
-    model_a_entries = load_gpqa_file(MODEL_A_FILE)
-    model_b_entries = load_gpqa_file(MODEL_B_FILE)
+def _load_entries(
+    model_a_file: Optional[Path] = None,
+    model_b_file: Optional[Path] = None,
+) -> Dict[str, Dict[int, GPQAEntry]]:
+    model_a_file = model_a_file or DEFAULT_MODEL_A_FILE
+    model_b_file = model_b_file or DEFAULT_MODEL_B_FILE
+    
+    model_a_entries = load_gpqa_file(model_a_file)
+    model_b_entries = load_gpqa_file(model_b_file)
     return {"A": model_a_entries, "B": model_b_entries}
 
 
@@ -57,8 +64,17 @@ def _write_csv(rows: List[Dict], filepath: Path | str):
         writer.writerows(rows)
 
 
-def build_rows(limit: Optional[int] = None) -> List[Dict]:
-    entries = _load_entries()
+def build_rows(
+    limit: Optional[int] = None,
+    model_a_file: Optional[Path] = None,
+    model_b_file: Optional[Path] = None,
+    model_a_name: Optional[str] = None,
+    model_b_name: Optional[str] = None,
+) -> List[Dict]:
+    model_a_name = model_a_name or DEFAULT_MODEL_A_NAME
+    model_b_name = model_b_name or DEFAULT_MODEL_B_NAME
+    
+    entries = _load_entries(model_a_file, model_b_file)
     pairs = match_pairs(entries["A"], entries["B"])
     filtered_pairs = filter_disagreements(pairs)
     if limit is not None:
@@ -66,7 +82,7 @@ def build_rows(limit: Optional[int] = None) -> List[Dict]:
 
     rows = []
     for i, (entry_a, entry_b) in enumerate(filtered_pairs):
-        rows.append(build_row(i, entry_a, entry_b, MODEL_A_NAME, MODEL_B_NAME))
+        rows.append(build_row(i, entry_a, entry_b, model_a_name, model_b_name))
     return rows
 
 
@@ -89,10 +105,22 @@ async def main(
     skip_conflicting_labels: Optional[bool] = None,
     max_num_from_same_story: Optional[int] = None,
     human_experiments: Optional[List[str]] = None,
+    model_a_file: Optional[str] = None,
+    model_b_file: Optional[str] = None,
+    model_a_name: Optional[str] = None,
+    model_b_name: Optional[str] = None,
 ):
     """
     GPQA loader to align with the Quality loader signature.
     Extra parameters are accepted for compatibility but ignored.
+    
+    Args:
+        filepath: Output CSV filepath
+        limit: Limit number of questions to load
+        model_a_file: Path to model A reasoning traces JSON (optional, defaults to GPQA GPT-4o)
+        model_b_file: Path to model B reasoning traces JSON (optional, defaults to GPQA Claude Sonnet 4)
+        model_a_name: Display name for model A (optional, defaults to "GPT-4o")
+        model_b_name: Display name for model B (optional, defaults to "Claude Sonnet 4")
     """
     _ = (
         split,
@@ -112,7 +140,18 @@ async def main(
     )  # unused
 
     filepath = Path(filepath)
-    rows = build_rows(limit=limit)
+    
+    # Convert string paths to Path objects if provided
+    model_a_path = Path(model_a_file) if model_a_file else None
+    model_b_path = Path(model_b_file) if model_b_file else None
+    
+    rows = build_rows(
+        limit=limit,
+        model_a_file=model_a_path,
+        model_b_file=model_b_path,
+        model_a_name=model_a_name,
+        model_b_name=model_b_name,
+    )
     if write_to_file:
         _write_csv(rows, filepath)
     return rows

@@ -72,11 +72,11 @@ async def async_main(cfg: DictConfig):
     filename = experiment.get_debate_filename(seed=0, swap=False)
     filename.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = filename.parent / f"cache_{filename.stem}"
-    loader = (
-        gpqa_loader
-        if getattr(cfg, "dataset_type", "quality") == "gpqa"
-        else quality_loader
-    )
+    dataset_type = getattr(cfg, "dataset_type", "quality")
+    if dataset_type in ["gpqa", "supergpqa"]:
+        loader = gpqa_loader
+    else:
+        loader = quality_loader
 
     if not filename.exists():
         await loader(
@@ -94,6 +94,10 @@ async def async_main(cfg: DictConfig):
             min_context_required=cfg.min_context_required,
             skip_conflicting_labels=cfg.skip_conflicting_labels,
             max_num_from_same_story=cfg.max_num_from_same_story,
+            model_a_file=getattr(cfg, "model_a_file", None),
+            model_b_file=getattr(cfg, "model_b_file", None),
+            model_a_name=getattr(cfg, "model_a_name", None),
+            model_b_name=getattr(cfg, "model_b_name", None),
         )
 
     rollout = setup_debate(

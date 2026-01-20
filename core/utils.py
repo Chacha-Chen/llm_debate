@@ -62,7 +62,7 @@ def setup_environment(
             }
     else:
         openai.api_key = secrets[openai_tag]
-    os.environ["ANTHROPIC_API_KEY"] = secrets[anthropic_tag]
+        os.environ["ANTHROPIC_API_KEY"] = secrets[anthropic_tag]
     if organization is not None and provider != "openrouter":
         openai.organization = secrets[organization]
 

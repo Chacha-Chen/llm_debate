@@ -127,11 +127,11 @@ async def async_main(cfg: DictConfig):
     filename = experiment.get_debate_filename(seed=cfg.seed, swap=False)
     filename.parent.mkdir(parents=True, exist_ok=True)
     cache_dir = filename.parent / f"cache_{filename.stem}"
-    loader = (
-        gpqa_loader
-        if getattr(cfg, "dataset_type", "quality") == "gpqa"
-        else quality_loader
-    )
+    dataset_type = getattr(cfg, "dataset_type", "quality")
+    if dataset_type in ["gpqa", "supergpqa"]:
+        loader = gpqa_loader
+    else:
+        loader = quality_loader
 
     if not filename.exists():
         print(f"No dataset found. Calling loader to {filename}")
@@ -151,6 +151,10 @@ async def async_main(cfg: DictConfig):
             skip_conflicting_labels=cfg.skip_conflicting_labels,
             max_num_from_same_story=cfg.max_num_from_same_story,
             human_experiments=cfg.human_experiments,
+            model_a_file=getattr(cfg, "model_a_file", None),
+            model_b_file=getattr(cfg, "model_b_file", None),
+            model_a_name=getattr(cfg, "model_a_name", None),
+            model_b_name=getattr(cfg, "model_b_name", None),
         )
 
     rollout = setup_debate(
@@ -179,11 +183,12 @@ async def async_main(cfg: DictConfig):
     )
 
     # For sequential/intermediary debate you must run swap at rollout time since it is not possible to do before judging.
-    # For GPQA, we also want a swapped run (to mitigate prefix bias) without changing the rollout protocol.
+    # For GPQA/SuperGPQA, we also want a swapped run (to mitigate prefix bias) without changing the rollout protocol.
+    dataset_type = getattr(cfg, "dataset_type", "quality")
     should_run_swap = (
         cfg.method_type == "seq"
         or (cfg.method == "debate" and cfg.use_intermediary)
-        or getattr(cfg, "dataset_type", "quality") == "gpqa"
+        or dataset_type in ["gpqa", "supergpqa"]
     )
     if should_run_swap:
         filename = experiment.get_debate_filename(seed=cfg.seed, swap=True)
@@ -205,6 +210,10 @@ async def async_main(cfg: DictConfig):
                 skip_conflicting_labels=cfg.skip_conflicting_labels,
                 max_num_from_same_story=cfg.max_num_from_same_story,
                 human_experiments=cfg.human_experiments,
+                model_a_file=getattr(cfg, "model_a_file", None),
+                model_b_file=getattr(cfg, "model_b_file", None),
+                model_a_name=getattr(cfg, "model_a_name", None),
+                model_b_name=getattr(cfg, "model_b_name", None),
             )
 
         rollout.cache_dir = cache_dir

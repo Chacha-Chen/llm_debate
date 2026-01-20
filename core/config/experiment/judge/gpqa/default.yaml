@@ -35,6 +35,6 @@ prompts:
         </transcript>
 
         Evaluate logical soundness, consistency, and evidence quality. Think step by step in <thinking></thinking> tags, then provide your final decision on a new line as:
-        Answer: <A|B|C|D>
+        Answer: <letter>
 
-        Choose the letter (A, B, C, or D) that corresponds to the correct answer to the question.
+        Choose the letter that corresponds to the correct answer to the question.

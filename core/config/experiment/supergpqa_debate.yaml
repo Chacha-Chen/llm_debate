@@ -1,0 +1,27 @@
+# @package _global_
+
+defaults:
+  - debaters/gpqa_v1@correct_debater
+  - debaters/gpqa_v1@incorrect_debater
+  - rollout: gpqa_sim
+  - judge/gpqa/default@judge
+  - _self_
+
+method: debate
+method_type: sim
+use_intermediary: false
+dataset_type: supergpqa
+dataset: supergpqa
+
+# SuperGPQA model configuration (GPT-4o vs Claude Sonnet 4)
+model_a_file: "data/supergpqa/SuperGPQA_Reasoning_Traces_openai_gpt-4o_all_500_exactly_one_correct.json"
+model_b_file: "data/supergpqa/SuperGPQA_Reasoning_Traces_anthropic_claude-sonnet-4_all_500_exactly_one_correct.json"
+model_a_name: "GPT-4o"
+model_b_name: "Claude Sonnet 4"
+
+# Alternative: Uncomment for Kimi vs GLM pair
+# model_a_file: "data/supergpqa/SuperGPQA_Reasoning_Traces_moonshotai_kimi-k2-thinking_all_500_exactly_one_correct.json"
+# model_b_file: "data/supergpqa/SuperGPQA_Reasoning_Traces_z-ai_glm-4.6_all_500_exactly_one_correct.json"
+# model_a_name: "Kimi K2 Thinking"
+# model_b_name: "GLM-4.6"
+

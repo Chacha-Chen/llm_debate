@@ -15,6 +15,7 @@ class GPQAEntry(BaseModel):
     model_correct: bool
     Question: str
 
+
     class Config:
         extra = "allow"
 
@@ -23,12 +24,22 @@ def parse_choices(choices: str) -> Dict[str, str]:
     """
     Parse a choices string like "A. opt1, B. opt2, C. opt3, D. opt4" into a map.
     Handles occasional newlines or trailing commas.
+    Supports extended choices beyond A-D (e.g., A-J for SuperGPQA).
+    Note: Choices may contain commas internally (e.g., "46,000 g/mole").
     """
     # Normalize whitespace/newlines
     normalized = " ".join(choices.replace("\n", " ").split())
-    pattern = re.compile(r"([A-D])\.\s*([^,]+)")
-    matches = pattern.findall(normalized)
-    return {letter.strip().upper(): text.strip() for letter, text in matches}
+    # Split by pattern ", <LETTER>." to separate choices
+    # Use lookahead to keep the letter+dot with the choice
+    parts = re.split(r",\s*(?=[A-Z]\.)", normalized)
+    result = {}
+    for part in parts:
+        # Match letter at start of part
+        match = re.match(r"^([A-Z])\.\s*(.+)$", part.strip())
+        if match:
+            letter, text = match.groups()
+            result[letter.strip().upper()] = text.strip()
+    return result
 
 
 def load_gpqa_file(path: Path) -> Dict[int, GPQAEntry]:
@@ -81,7 +92,9 @@ def build_row(
     correct_model = "A" if entry_a.model_correct else "B"
     incorrect_entry = entry_b if entry_a.model_correct else entry_a
 
+    # Parse answer text from choices using the correct letter
     correct_answer_text = choices_map.get(correct_letter, "")
+    # Parse incorrect answer from choices using incorrect model's predicted letter
     negative_answer_text = choices_map.get(
         incorrect_entry.model_answer.strip().upper(), ""
     )
