@@ -24,12 +24,21 @@ LOGGER = logging.getLogger(__name__)
 
 class GPQASimRollout(QualitySimRollout):
     def _names_for_row(self, row: pd.Series, swap: bool) -> DebaterNames:
-        # Anonymize debater display names to avoid model-identification bias.
-        # Use "Debater 1" and "Debater 2" instead of "A" and "B" to avoid confusion with multiple choice options.
-        correct_name = "Debater 1"
-        incorrect_name = "Debater 2"
-        if swap:
-            correct_name, incorrect_name = incorrect_name, correct_name
+        # MODEL_A is always "Debater 1", MODEL_B is always "Debater 2"
+        # Map correct/incorrect debaters to MODEL_A/B based on correct_model
+        correct_model = str(row.get("correct_model", "A")).upper()
+
+        if correct_model == "A":
+            # MODEL_A is correct, MODEL_B is incorrect
+            correct_name = "Debater 1"  # MODEL_A
+            incorrect_name = "Debater 2"  # MODEL_B
+        else:
+            # MODEL_B is correct, MODEL_A is incorrect
+            correct_name = "Debater 2"  # MODEL_B
+            incorrect_name = "Debater 1"  # MODEL_A
+
+        # Note: swap parameter is not used here because MODEL_A/B mapping is fixed
+        # Swap only affects presentation order in the transcript, not MODEL_A/B identity
         return DebaterNames(correct=correct_name, incorrect=incorrect_name, judge=None)
 
     def _extra_for_row(self, row: pd.Series) -> dict:

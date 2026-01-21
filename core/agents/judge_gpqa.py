@@ -28,13 +28,34 @@ class JudgeGPQA(JudgeQuality):
         return "\n".join(parts)
 
     def get_transcript(self, transcript: TranscriptConfig) -> str:
-        """Override to skip story/quote verification for GPQA (no story field)."""
-        transcript_string = ""
+        """Override to skip story/quote verification for GPQA (no story field).
+
+        MODEL_A is always "Debater 1", MODEL_B is always "Debater 2" in the transcript.
+        """
+        extra = transcript.extra or {}
+        correct_model = str(extra.get("correct_model", "A")).upper()
+
+        # MODEL_A is always "Debater 1", MODEL_B is always "Debater 2"
+        model_a_name = "Debater 1"
+        model_b_name = "Debater 2"
+
+        # Map correct/incorrect positions to MODEL_A/B names
+        if correct_model == "A":
+            # MODEL_A is correct, MODEL_B is incorrect
+            correct_debater_name = model_a_name
+            incorrect_debater_name = model_b_name
+        else:
+            # MODEL_B is correct, MODEL_A is incorrect
+            correct_debater_name = model_b_name
+            incorrect_debater_name = model_a_name
+
+        # Determine order based on swap
         if not transcript.swap:
             positions = ["judge", "cross_examiner", "correct", "incorrect"]
         else:
             positions = ["judge", "cross_examiner", "incorrect", "correct"]
 
+        transcript_string = ""
         for i, round in enumerate(transcript.rounds):
             transcript_string += f"Round {i + 1}:\n\n"
             for position in positions:
@@ -42,6 +63,12 @@ class JudgeGPQA(JudgeQuality):
                 if message:
                     if position == "judge":
                         name = "Judge"
+                    elif position == "cross_examiner":
+                        name = transcript.names.cross_examiner or "Judge"
+                    elif position == "correct":
+                        name = correct_debater_name
+                    elif position == "incorrect":
+                        name = incorrect_debater_name
                     else:
                         name = getattr(transcript.names, position, position)
                     assert name is not None
@@ -63,12 +90,13 @@ class JudgeGPQA(JudgeQuality):
         answer_a_text = choices_map.get(model_a_letter, "")
         answer_b_text = choices_map.get(model_b_letter, "")
 
+        # MODEL_A is always "Debater 1", MODEL_B is always "Debater 2"
         placeholders = {
             "QUESTION": lambda: transcript.question,
             "ANSWER_A": lambda: answer_a_text,
             "ANSWER_B": lambda: answer_b_text,
-            "NAME_A": lambda: transcript.names.correct or "Debater 1",
-            "NAME_B": lambda: transcript.names.incorrect or "Debater 2",
+            "NAME_A": lambda: "Debater 1",  # MODEL_A is always Debater 1
+            "NAME_B": lambda: "Debater 2",  # MODEL_B is always Debater 2
             "TRANSCRIPT": lambda: self.get_transcript(transcript),
             # Anonymize model names to avoid bias - use debater labels for consistency
             "MODEL_A_NAME": lambda: "Debater 1",

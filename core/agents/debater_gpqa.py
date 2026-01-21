@@ -145,7 +145,10 @@ class DebaterGPQA(DebaterQuality):
         letter_defending, letter_opposing = self.answer_letters_from_transcript(
             transcript
         )
-        name, opponent_name = self.names_from_transcript(transcript)
+        # MODEL_A is always "Debater 1", MODEL_B is always "Debater 2"
+        model_key = self._internal_model_key(transcript)
+        name = "Debater 1" if model_key == "A" else "Debater 2"
+        opponent_name = "Debater 2" if model_key == "A" else "Debater 1"
         choices_text = self._choices_text(transcript)
         model_answer_letter = self._model_answer_letter_for_label(transcript)
 
