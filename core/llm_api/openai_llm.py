@@ -244,7 +244,7 @@ class OpenAIModel(ModelAPIProtocol):
 
                 # Make the API call outside the lock
                 return await asyncio.wait_for(
-                    self._make_api_call(prompt, model_id, start, **kwargs), timeout=120
+                    self._make_api_call(prompt, model_id, start, **kwargs), timeout=300
                 )
 
         model_ids.sort(

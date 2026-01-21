@@ -14,12 +14,14 @@ from core.load.gpqa import (
 )
 from core.utils import typer_async
 
-MODEL_A_NAME = "GPT-4o"
-MODEL_B_NAME = "Claude Sonnet 4"
+MODEL_B_NAME = "GLM-4.6"
+MODEL_A_NAME = "Kimi K2 Thinking"
 
-MODEL_A_FILE = Path("data/gpqa/GPQA_Reasoning_Traces_openai_gpt-4o_main_all_448.json")
 MODEL_B_FILE = Path(
-    "data/gpqa/GPQA_Reasoning_Traces_anthropic_claude-sonnet-4_main_all_448.json"
+    "data/gpqa/GPQA_Reasoning_Traces_z-ai_glm-4.6_main_all_448_exactly_one_correct.json"
+)
+MODEL_A_FILE = Path(
+    "data/gpqa/GPQA_Reasoning_Traces_moonshotai_kimi-k2-thinking_main_all_448_exactly_one_correct.json"
 )
 
 

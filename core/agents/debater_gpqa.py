@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 from core.agents.debater_quality import TOKEN_LIMIT_ARGUMENT, DebaterQuality
@@ -18,6 +19,7 @@ class DebaterGPQA(DebaterQuality):
         # normalize to lowercase/no-spaces before lookup
         "gpt4o": "openai/gpt-4o",
         "gpt-4o": "openai/gpt-4o",
+        "gpt-4": "openai/gpt-4",
         "gpt-4-1106-preview": "openai/gpt-4o",
         "claudesonnet4": "anthropic/claude-sonnet-4",
         "claude-sonnet-4": "anthropic/claude-sonnet-4",
@@ -176,12 +178,82 @@ class DebaterGPQA(DebaterQuality):
 
         return content
 
+    @staticmethod
+    def _is_kimi_model_id(model_id: str) -> bool:
+        mid = (model_id or "").lower()
+        # Be tolerant to provider aliases/overrides.
+        return "kimi" in mid or "moonshotai/" in mid
+
+    @classmethod
+    def _strip_thinking_instructions(
+        cls, messages: list[dict], model_id: str
+    ) -> list[dict]:
+        """For thinking-heavy models (notably Kimi), avoid requesting explicit <thinking> tags.
+
+        This reduces wasted output tokens and lowers the chance the model is cut off before
+        emitting the required <argument>...</argument> block.
+        """
+        if not cls._is_kimi_model_id(model_id):
+            return messages
+
+        # A soft, model-specific style nudge: reduce long scratchwork without being overly restrictive.
+        # Keep <argument> tags (required by our validation/parsing), but ask the model to think silently.
+        kimi_style_nudge = (
+            "\n\n"
+            "Important: Think silently. Do NOT output any chain-of-thought, scratchwork, or step-by-step reasoning. "
+            "Write only your final response inside <argument>...</argument> tags. "
+            "Be concise and avoid preambles."
+        )
+
+        rewritten: list[dict] = []
+        for m in messages:
+            content = m.get("content", "")
+
+            # 1) System message: change required output format from thinking+argument → argument only.
+            content = content.replace(
+                "Output exactly:\n<thinking>...</thinking>\n<argument>...</argument>",
+                "Output exactly:\n<argument>...</argument>",
+            )
+            # Add the style nudge once (best-effort): append to system message content.
+            if (m.get("role") == "system") and ("Think silently." not in content):
+                content = content + kimi_style_nudge
+
+            # 2) User message: remove the "First, think ..." block while keeping the argument requirement.
+            # After placeholder substitution, this block can be multi-line; match loosely.
+            content = re.sub(
+                r"First,\s*think\s*in\s*<thinking></thinking>\s*tags\s*using:\s*.*?\s*Then\s*write\s*your\s*argument\s*in\s*<argument></argument>\s*tags\.\s*",
+                "Write your argument in <argument></argument> tags. ",
+                content,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+
+            # 3) If any stray thinking tags remain in instructions, remove them.
+            content = content.replace("<thinking>...</thinking>", "").replace(
+                "<thinking></thinking>", ""
+            )
+
+            rewritten.append({**m, "content": content})
+        return rewritten
+
     async def get_completion(self, transcript: TranscriptConfig):
         """Override to select model by debater label (internal A/B mapping) instead of correctness.
 
         Note: Display names are "Debater 1" and "Debater 2" to avoid confusion with multiple choice options.
         """
+        model_id = self._model_id_for_label(transcript)
+        kimi_mode = self._is_kimi_model_id(model_id)
+
         prompt = self.construct_messages(transcript)
+        prompt = self._strip_thinking_instructions(prompt, model_id)
+
+        # For Kimi "thinking" models, prime the assistant to start an <argument> block.
+        # This is a soft prompt-level nudge to reduce long free-form reasoning and improve tag compliance.
+        stop = None
+        if kimi_mode:
+            prompt = [dict(m) for m in prompt]
+            prompt.append({"role": "assistant", "content": "<argument>"})
+            # If the provider supports stop sequences, this encourages ending cleanly.
+            stop = ["</argument>"]
         if (
             "ft:" in self.config.language_model.model
             or "gpt-3.5-turbo-16k" == self.config.language_model.model

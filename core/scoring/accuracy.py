@@ -14,6 +14,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 def find_answer(text, letter):
+    # Handle empty or whitespace-only text
+    if not text or not text.strip():
+        return False
+
     pattern = re.compile(
         f"^(?:Final )?Answer: (<{letter}>|{letter})(?:\n|$)", re.MULTILINE
     )

@@ -12,11 +12,11 @@ language_model:
   model: "gpt-4-1106-preview"
   temperature: 0.4
   top_p: 1.0
-  max_tokens: 800
+  max_tokens: 2000
   max_words: 160
   min_words: 60
   num_candidates_per_completion: 3
-  timeout: 120
+  timeout: 300
 prompts:
   word_limit: 150
   partials:
