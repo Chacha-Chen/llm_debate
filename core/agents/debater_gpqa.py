@@ -1,9 +1,12 @@
+import logging
 from typing import Optional
 
-from core.agents.debater_quality import DebaterQuality
+from core.agents.debater_quality import TOKEN_LIMIT_ARGUMENT, DebaterQuality
 from core.file_handler import Method
 from core.rollouts.utils import TranscriptConfig
 from core.utils import SEPARATOR
+
+LOGGER = logging.getLogger(__name__)
 
 
 class DebaterGPQA(DebaterQuality):
@@ -45,7 +48,15 @@ class DebaterGPQA(DebaterQuality):
         reasoning trace, even when swap=True changes the "Debater 1/2" labels.
         """
         extra = transcript.extra or {}
-        correct_model = str(extra.get("correct_model", "A")).upper()
+        correct_model_raw = extra.get("correct_model")
+        if correct_model_raw is None:
+            raise ValueError(
+                "correct_model is required in transcript.extra for GPQA debaters. "
+                "This indicates which model (A or B) has the correct answer."
+            )
+        correct_model = str(correct_model_raw).upper()
+        if correct_model not in ("A", "B"):
+            raise ValueError(f"correct_model must be 'A' or 'B', got '{correct_model}'")
 
         if self.correct:
             # This debater represents the correct model

@@ -26,7 +26,7 @@ python -m core.load.gpqa_loader ./data/gpqa_runs_test/debate_sim/data0.csv --lim
 
 python -m core.debate \
   +experiment=gpqa_debate \
-  exp_dir=./data/gpqa_runs_test \
+  exp_dir=./data/gpqa_runs_test_0120 \
   dataset_type=gpqa \
   llm_provider=openrouter \
   limit=2 \

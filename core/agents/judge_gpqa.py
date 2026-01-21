@@ -53,22 +53,28 @@ class JudgeGPQA(JudgeQuality):
         model_a_reasoning = self._reasoning_text(extra, "model_a_reasoning")
         model_b_reasoning = self._reasoning_text(extra, "model_b_reasoning")
         choices_text = self._choices_text(extra)
+        choices_map = extra.get("choices_map", {}) if extra else {}
+
+        # Get model answer letters
+        model_a_letter = str(extra.get("model_a_answer_letter", "")).strip().upper()
+        model_b_letter = str(extra.get("model_b_answer_letter", "")).strip().upper()
+
+        # Bind ANSWER_A to MODEL_A's prediction and ANSWER_B to MODEL_B's prediction
+        answer_a_text = choices_map.get(model_a_letter, "")
+        answer_b_text = choices_map.get(model_b_letter, "")
+
         placeholders = {
             "QUESTION": lambda: transcript.question,
-            "ANSWER_A": lambda: transcript.answers.correct
-            if not transcript.swap
-            else transcript.answers.incorrect,
-            "ANSWER_B": lambda: transcript.answers.incorrect
-            if not transcript.swap
-            else transcript.answers.correct,
+            "ANSWER_A": lambda: answer_a_text,
+            "ANSWER_B": lambda: answer_b_text,
             "NAME_A": lambda: transcript.names.correct or "Debater 1",
             "NAME_B": lambda: transcript.names.incorrect or "Debater 2",
             "TRANSCRIPT": lambda: self.get_transcript(transcript),
             # Anonymize model names to avoid bias - use debater labels for consistency
             "MODEL_A_NAME": lambda: "Debater 1",
             "MODEL_B_NAME": lambda: "Debater 2",
-            "MODEL_A_ANSWER_LETTER": lambda: extra.get("model_a_answer_letter", ""),
-            "MODEL_B_ANSWER_LETTER": lambda: extra.get("model_b_answer_letter", ""),
+            "MODEL_A_ANSWER_LETTER": lambda: model_a_letter,
+            "MODEL_B_ANSWER_LETTER": lambda: model_b_letter,
             "MODEL_A_REASONING": lambda: model_a_reasoning,
             "MODEL_B_REASONING": lambda: model_b_reasoning,
             "CHOICES": lambda: choices_text,
