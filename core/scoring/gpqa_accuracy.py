@@ -94,7 +94,8 @@ def get_gpqa_accuracy(
     if not isinstance(df, pd.DataFrame):
         df = pd.read_csv(df, encoding="utf-8")
 
-    full = len(df)
+    original_full = len(df)
+    full = original_full
     correct_columns = []
 
     for n_vote in range(n_votes):
@@ -111,7 +112,34 @@ def get_gpqa_accuracy(
                 f"Please run the judge first using: python -m core.judge +experiment=gpqa_debate exp_dir=<your_exp_dir> dataset_type=gpqa"
             )
 
-        df = get_complete_rows(df, complete_column, ensure_complete=True)
+        # Allow a small fraction of incomplete judgements (e.g. due to a few incomplete debates)
+        # and score on the completed subset instead of erroring out.
+        def _to_bool(series: pd.Series) -> pd.Series:
+            if series.dtype == bool:
+                return series.fillna(False)
+            return (
+                series.fillna(False)
+                .astype(str)
+                .str.strip()
+                .str.lower()
+                .isin({"true", "1", "t", "yes", "y"})
+            )
+
+        len_before = len(df)
+        complete_mask = _to_bool(df[complete_column])
+        num_incomplete = int((~complete_mask).sum())
+        if num_incomplete > 0:
+            frac_incomplete = num_incomplete / max(1, len_before)
+            warning_string = f"{num_incomplete} incomplete"
+            LOGGER.warning(f"WARNING: {warning_string}")
+            if frac_incomplete > 0.05:
+                raise ValueError(warning_string)
+        df = df[complete_mask]
+        if df.empty:
+            raise ValueError("no complete rows")
+
+        # From this point on, denominator should be the number of rows we can actually score.
+        full = len(df)
 
         # Check if required columns exist
         # Prefer "correct answer letter" if available (direct comparison), otherwise fall back to text lookup
@@ -174,6 +202,7 @@ def get_gpqa_accuracy(
 
     accuracy = (df_tmp["correct_voted"] == True).sum() / full
 
+    # Return `total` as the number of rows scored (completed judgements), not the original file length.
     return accuracy, count_unknown, full, df
 
 

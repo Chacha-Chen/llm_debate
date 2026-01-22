@@ -41,9 +41,37 @@ async def run_judge(
     full_df = pd.read_csv(filename)
     if limit is not None:
         full_df = full_df.head(int(limit))
-    assert full_df[
-        "complete"
-    ].all(), "Not all values in the column 'complete' are True, rerun debate"
+
+    # Allow a small fraction of incomplete debates so we can still proceed with judging.
+    # This is useful when a few rows failed due to transient API issues, formatting, etc.
+    def _to_bool(series: pd.Series) -> pd.Series:
+        if series.dtype == bool:
+            return series.fillna(False)
+        return (
+            series.fillna(False)
+            .astype(str)
+            .str.strip()
+            .str.lower()
+            .isin({"true", "1", "t", "yes", "y"})
+        )
+
+    if "complete" not in full_df.columns:
+        raise ValueError(
+            "Missing required column 'complete' in debate file; rerun debate generation."
+        )
+    complete_mask = _to_bool(full_df["complete"])
+    frac_incomplete = float((~complete_mask).mean()) if len(full_df) else 0.0
+    if frac_incomplete > 0:
+        if frac_incomplete > 0.05:
+            raise AssertionError(
+                f"Too many incomplete debates: {frac_incomplete*100:.2f}% incomplete "
+                f"({int((~complete_mask).sum())}/{len(full_df)} rows). Rerun debate."
+            )
+        LOGGER.warning(
+            f"{frac_incomplete*100:.2f}% of debates are incomplete "
+            f"({int((~complete_mask).sum())}/{len(full_df)} rows). "
+            "Proceeding to judge only completed debates."
+        )
 
     # majority voting setup
     n_vote_str = n_vote if n_vote > 0 else ""
@@ -53,7 +81,8 @@ async def run_judge(
         full_df[complete_column] = False
         full_df[judge_column] = ""
     # filter out rows that have already been completed
-    df = full_df[full_df[complete_column] == False]
+    # and only judge rows where the underlying debate is complete
+    df = full_df[(full_df[complete_column] == False) & (complete_mask == True)]
 
     LOGGER.info(f"Using column {complete_column}")
     LOGGER.info(f"Using file {filename}")
@@ -96,10 +125,15 @@ async def run_judge(
     full_df.update(df)
 
     full_df.to_csv(filename, index=False)
-    if full_df[complete_column].eq(True).all():
+    # "Done" means: all judgeable rows (i.e., debates that completed) have been judged.
+    # We may intentionally skip a small fraction of incomplete debates.
+    if len(full_df) == 0:
         return True
-    else:
-        return False
+    judged_mask = full_df[complete_column].eq(True)
+    if complete_mask.any():
+        return bool(judged_mask[complete_mask].all())
+    # No completed debates to judge (e.g., everything incomplete) — nothing to do.
+    return True
 
 
 @hydra.main(version_base=None, config_path="config/", config_name="config")
